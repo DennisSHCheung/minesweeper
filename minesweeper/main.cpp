@@ -2,10 +2,12 @@
 #include <iostream>
 
 typedef std::vector<std::vector<cell>> grid;
+typedef std::pair<bool, bool> mouse_click;
 
 void set_mines(grid&);
 void set_cell_data(grid&);
 bool is_valid(int, int);
+bool is_mine(grid&, int, int);
 
 sf::Vector2f get_mouse_coord(sf::RenderWindow& window)
 {
@@ -22,7 +24,10 @@ grid init_game_grid(sf::Texture& texture)
 	set_cell_data(game_grid);
 	for (int i = 0; i < game_grid.size(); i++)
 		for (int j = 0; j < game_grid.at(0).size(); j++)
+		{
 			game_grid.at(i).at(j).cell_sprite.setPosition(sf::Vector2f(i * 32, j * 32));
+			game_grid.at(i).at(j).color = game_grid.at(i).at(j).cell_sprite.getColor();
+		}
 	return game_grid;
 }
 
@@ -58,11 +63,6 @@ void set_mines(grid& game_grid)
 		add_mines(game_grid, num_of_mines, total_num_of_mines);
 }
 
-bool is_mine(grid& game_grid, int i, int j)
-{
-	return game_grid.at(i).at(j).data == 'm';
-}
-
 void find_adjacent_mines(grid& game_grid, int i, int j, int& mines_count)
 {
 	if (is_valid(i, j))
@@ -93,11 +93,16 @@ void set_cell_data(grid& game_grid)
 	}
 }
 
-/**********************************************************************************/
+/***************************************** Helper functions *****************************************/
 
 bool is_valid(int i, int j)
 {
 	return i >= 0 && i < 9 && j >= 0 && j < 9;
+}
+
+bool is_mine(grid& game_grid, int i, int j)
+{
+	return game_grid.at(i).at(j).data == 'm';
 }
 
 bool is_empty_cell(grid& grid, int i, int j)
@@ -113,6 +118,13 @@ void search_adjacent_empty_cell(grid& game_grid, std::vector <std::pair<int, int
 			queue.push_back(std::make_pair(i, j));
 		game_grid.at(i).at(j).is_visible = true;
 	}
+}
+
+void count_adjacent_flag_cell(grid& game_grid, int i, int j, int& flag_count)
+{
+	if (is_valid(i, j))
+		if (game_grid.at(i).at(j).is_flagged)
+			flag_count++;
 }
 
 void reveal_adjacent_cells(grid& game_grid, int i, int j)
@@ -145,13 +157,6 @@ void reveal_adjacent_cells(grid& game_grid, int i, int j)
 	}
 }
 
-void count_adjacent_flag_cell(grid& game_grid, int i, int j, int& flag_count)
-{
-	if (is_valid(i, j))
-		if (game_grid.at(i).at(j).is_flagged)
-			flag_count++;
-}
-
 int count_adjacent_flags(grid& game_grid, int i, int j)
 {
 	int flag_count = 0;
@@ -170,52 +175,92 @@ void display(sf::RenderWindow& window, grid& game_grid)
 {
 	window.clear(sf::Color::White);
 
-	for (auto i : game_grid)
+	for (auto& i : game_grid)
 	{
-		for (auto j : i)
+		for (auto& j : i)
 		{
 			window.draw(j.get_sprite());
+			j.cell_sprite.setColor(j.color);
 		}
 	}
 
 	window.display();
 }
 
-void event_handler(sf::RenderWindow& window, sf::Event& event, bool& is_left_clicked, bool& is_right_clicked)
+void highlight_hidden_cells(grid& game_grid, int i, int j)
+{
+	if (is_valid(i, j))
+		if (!game_grid.at(i).at(j).is_visible)
+		{
+			game_grid.at(i).at(j).cell_sprite.setColor(sf::Color(192, 192, 192));
+		}
+}
+
+void highlight_adjacent_cells(grid& game_grid, int i, int j)
+{
+	highlight_hidden_cells(game_grid, i - 1, j);
+	highlight_hidden_cells(game_grid, i + 1, j);
+	highlight_hidden_cells(game_grid, i, j + 1);
+	highlight_hidden_cells(game_grid, i, j - 1);
+	highlight_hidden_cells(game_grid, i - 1, j + 1);
+	highlight_hidden_cells(game_grid, i - 1, j - 1);
+	highlight_hidden_cells(game_grid, i + 1, j + 1);
+	highlight_hidden_cells(game_grid, i + 1, j - 1);
+}
+
+void event_handler(sf::RenderWindow& window, sf::Event& event, mouse_click& pressed, mouse_click& released)
 {
 	if (event.type == sf::Event::Closed)
 		window.close();
 	else if (event.type == sf::Event::MouseButtonPressed)
 	{
-		if (event.mouseButton.button == sf::Mouse::Left) is_left_clicked = true;
-		if (event.mouseButton.button == sf::Mouse::Right) is_right_clicked = true;
+		if (event.mouseButton.button == sf::Mouse::Left) pressed.first = true;
+		if (event.mouseButton.button == sf::Mouse::Right) pressed.second = true;
 	}
 	else if (event.type == sf::Event::MouseButtonReleased)
 	{
-		if (event.mouseButton.button == sf::Mouse::Left) is_left_clicked = false;
-		if (event.mouseButton.button == sf::Mouse::Right) is_right_clicked = false;
+		if (event.mouseButton.button == sf::Mouse::Left)
+		{
+			released.first = true;
+		}
+		if (event.mouseButton.button == sf::Mouse::Right)
+		{
+			released.second = true;
+		}
 	}
 }
 
-void input_handler(sf::RenderWindow& window, grid& game_grid, bool is_left_clicked, bool is_right_clicked)
+void input_handler(sf::RenderWindow& window, grid& game_grid, mouse_click& pressed, mouse_click& released)
 {
-	if (is_left_clicked && is_right_clicked)
+	if (pressed.first && pressed.second && released.first && released.second)
 	{
 		for (int i = 0; i < game_grid.size(); i++)
 		{
 			for (int j = 0; j < game_grid.at(0).size(); j++)
 			{
-				if (game_grid.at(i).at(j).is_visible && !game_grid.at(i).at(j).is_flagged && !is_empty_cell(game_grid, i, j))
+				if (game_grid.at(i).at(j).cell_sprite.getGlobalBounds().contains(get_mouse_coord(window)))
 				{
-					if (count_adjacent_flags(game_grid, i, j) + '0' == game_grid.at(i).at(j).data)
+					if (game_grid.at(i).at(j).is_visible && !game_grid.at(i).at(j).is_flagged && !is_empty_cell(game_grid, i, j))
 					{
-						reveal_adjacent_cells(game_grid, i, j);
+						if (count_adjacent_flags(game_grid, i, j) + '0' == game_grid.at(i).at(j).data)
+						{
+							reveal_adjacent_cells(game_grid, i, j);
+						}
 					}
 				}
 			}
 		}
+		pressed = std::make_pair(false, false);
+		released = pressed;
 	}
-	else if (is_left_clicked)
+	else if (pressed.first && pressed.second)
+	{
+		for (int i = 0; i < game_grid.size(); i++)
+			for (int j = 0; j < game_grid.at(0).size(); j++)
+				if (game_grid.at(i).at(j).cell_sprite.getGlobalBounds().contains(get_mouse_coord(window)))
+					highlight_adjacent_cells(game_grid, i, j);
+	}
+	else if (released.first)
 	{
 		for (int i = 0; i < game_grid.size(); i++)
 			for (int j = 0; j < game_grid.at(0).size(); j++)
@@ -231,14 +276,18 @@ void input_handler(sf::RenderWindow& window, grid& game_grid, bool is_left_click
 							game_grid.at(i).at(j).is_visible = true;
 						}
 					}
+		pressed.first = false;
+		released.first = false;
 	}
-	else if (is_right_clicked)
+	else if (released.second)
 	{
 		for (auto& i : game_grid)
 			for (auto& j : i)
 			if (j.cell_sprite.getGlobalBounds().contains(get_mouse_coord(window)))
 				if (j.is_changable())
 					j.toggle_flag();
+		pressed.second = false;
+		released.second = false;
 	}
 }
 
@@ -248,17 +297,18 @@ int main()
 	std::string path = cell::get_exe_location();
 	sf::Texture texture;
 	texture.loadFromFile(path + "tiles.jpg");
-
 	grid game_grid = init_game_grid(texture);
-	bool is_left_clicked = false, is_right_clicked = false;
+	mouse_click pressed = std::make_pair(false, false), released = pressed;
+	int total_num_of_mines = 10, total_num_of_flags = 0;
+
 
 	while (window.isOpen())
 	{
 		sf::Event event;
 		
 		while (window.pollEvent(event))
-			event_handler(window, event, is_left_clicked, is_right_clicked);
-		input_handler(window, game_grid, is_left_clicked, is_right_clicked);
+			event_handler(window, event, pressed, released);
+		input_handler(window, game_grid, pressed, released);
 
 		display(window, game_grid);
 	}

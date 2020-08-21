@@ -12,6 +12,7 @@ public:
 	char data;
 	bool is_flagged = false;
 	bool is_visible = false;
+	sf::Color color;
 
 	cell(sf::Texture&);
 	sf::Sprite get_sprite();
