@@ -14,7 +14,7 @@ public:
 	bool is_visible = false;
 
 	cell(sf::Texture&);
-	void set_sprite(char);
+	sf::Sprite get_sprite();
 	void toggle_flag();
 	bool is_changable();
 

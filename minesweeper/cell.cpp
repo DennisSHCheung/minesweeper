@@ -4,16 +4,23 @@ cell::cell(sf::Texture& texture)
 {
 	this->cell_sprite.setTexture(texture);
 	this->cell_sprite.setTextureRect(sf::IntRect(320, 0, 31, 31));
-	//this->cell_sprite.setScale(sf::Vector2f(2.f, 2.f));
 }
 
-void cell::set_sprite(char ch)
+sf::Sprite cell::get_sprite()
 {
-	if (ch == 'm')
-		this->cell_sprite.setTextureRect(sf::IntRect(9 * 32, 0, 31, 31));
+	if (this->is_flagged)
+		this->cell_sprite.setTextureRect(sf::IntRect(352, 0, 31, 31));
+	else if (this->is_visible)
+	{
+		if (this->data == 'm')
+			this->cell_sprite.setTextureRect(sf::IntRect(9 * 32, 0, 31, 31));
+		else
+			this->cell_sprite.setTextureRect(sf::IntRect((this->data - '0') * 32, 0, 31, 31));
+	}
 	else
-		this->cell_sprite.setTextureRect(sf::IntRect((ch - '0') * 32, 0, 31, 31));
-	this->data = ch;
+		this->cell_sprite.setTextureRect(sf::IntRect(320, 0, 31, 31));
+
+	return this->cell_sprite;
 }
 
 void cell::toggle_flag()
